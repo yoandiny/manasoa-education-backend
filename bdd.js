@@ -1,11 +1,20 @@
 const { Pool } = require('pg');
+require('dotenv').config();
+
+const dbConfig = {
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+};
 
 const pool = new Pool({
-  user: "avnadmin",
-  password: "AVNS_fzEUlxFV6INkrwq8z3S",
-  host: "manasoa-db-manasoa-education.c.aivencloud.com",
-  port: 10955,
-  database: "defaultdb",
+  user: dbConfig.user,
+  password: dbConfig.password,
+  host: dbConfig.host,
+  port: dbConfig.port,
+  database: dbConfig.database,
   ssl: {
         rejectUnauthorized: true,
         ca: `-----BEGIN CERTIFICATE-----
