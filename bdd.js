@@ -7,7 +7,7 @@ const dbConfig = {
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
   database: process.env.DB_NAME,
-  certificate: process.env.DB_CERT,
+  certificate: fs.readFileSync(process.env.DB_CERT),
 };
 
 const pool = new Pool({
