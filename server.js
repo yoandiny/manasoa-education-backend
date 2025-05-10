@@ -4,8 +4,10 @@ const app = express();
 const cors = require('cors');
 const report = require('./reportCard.js');
 const makeReportCard = require('./reportCard.js');
+const fs = require('fs');
+const path = require('path');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors({ origin: '*' }));
 app.use(express.json());
@@ -340,19 +342,28 @@ ORDER BY quarter_id, niveau;
   }
 });
 
-app.post('/generateReport', async(req, res) => {
+app.post('/generateReport', async (req, res) => {
   try {
     const { id, quarter_id } = req.body;
-    const report = await makeReportCard(id, quarter_id);
-    
-    res.send(report);
-    res.status(200).json(generateReport.rows);
-    
+    const reportPath = await makeReportCard(id, quarter_id);  // Fonction qui génère le bulletin
+
+    if (!reportPath || !fs.existsSync(reportPath)) {
+      return res.status(500).json({ error: "Le fichier généré n'existe pas" });
+    }
+
+    // Envoyer le fichier généré au client
+    res.download(reportPath, (err) => {
+      if (err) {
+        console.error('Erreur lors de l\'envoi du fichier:', err);
+        res.status(500).json({ error: 'Erreur serveur lors de l\'envoi du fichier' });
+      }
+    });
   } catch (error) {
     console.error('Erreur dans /generateReport:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
+
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Serveur Express démarré sur le port ${PORT}`);
