@@ -2,10 +2,14 @@ const pool = require('./bdd.js');
 const express = require('express');
 const app = express();
 const cors = require('cors');
-const report = require('./reportCard.js');
-const makeReportCard = require('./reportCard.js');
+const JSZip = require('jszip');
+
+
 const fs = require('fs');
 const path = require('path');
+const report = require('./reportCard.js');
+const { buffer } = require('stream/consumers');
+
 
 const PORT = process.env.PORT || 3001;
 
@@ -342,10 +346,11 @@ ORDER BY quarter_id, niveau;
   }
 });
 
-app.post('/generateReport', async (req, res) => {
+app.post('/generateStudentReport', async (req, res) => {
   try {
     const { id, quarter_id } = req.body;
-    const reportPath = await makeReportCard(id, quarter_id);  // Fonction qui génère le bulletin
+    console.log(id, Number(quarter_id));
+    const reportPath = await report.generateClassReport(id, quarter_id);  // Fonction qui génère le bulletin
 
     if (!reportPath || !fs.existsSync(reportPath)) {
       return res.status(500).json({ error: "Le fichier généré n'existe pas" });
@@ -356,6 +361,8 @@ app.post('/generateReport', async (req, res) => {
       if (err) {
         console.error('Erreur lors de l\'envoi du fichier:', err);
         res.status(500).json({ error: 'Erreur serveur lors de l\'envoi du fichier' });
+      }else{
+        
       }
     });
   } catch (error) {
@@ -363,6 +370,47 @@ app.post('/generateReport', async (req, res) => {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
+
+app.post('/generateClassReport', async (req, res) => {
+  try {
+    const { class_id, quarter_id } = req.body;
+    const zip = new JSZip();
+    const className = await pool.query(`SELECT class_name FROM class WHERE class_id =$1`, [class_id]);
+    console.log(class_id);
+    const classFolder = zip.folder(className.rows[0].class_name);
+
+    const classes = await pool.query(`SELECT id FROM students WHERE class_id = $1`, [class_id]);
+    
+    for(i=0; i< classes.rows.length; i++){
+      const id = classes.rows[i].id;
+      
+      const reportPath = await report.generateClassReport(id, quarter_id); 
+      const reportCard = fs.readFileSync(reportPath); 
+      classFolder.file(`Bulletin ${classes.rows[i].id}.xlsx`, reportCard);
+    }
+    const classZip = await zip.generateAsync({ type: 'nodebuffer' });
+    const zipName = `${className.rows[0].class_name}.zip`;
+    const zipPath = path.resolve(__dirname, 'reportCards', zipName);
+    fs.writeFileSync(zipPath, classZip);
+    
+
+
+    // Envoyer le fichier généré au client
+    res.download(zipPath, (err) => {
+      if (err) {
+        console.error('Erreur lors de l\'envoi du fichier:', err);
+        res.status(500).json({ error: 'Erreur serveur lors de l\'envoi du fichier' });
+      }else{
+        
+      }
+    });
+  } catch (error) {
+    console.error('Erreur dans /generateClassReport:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+
 
 
 app.listen(PORT, '0.0.0.0', () => {

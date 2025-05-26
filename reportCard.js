@@ -1,8 +1,11 @@
 const path = require('path');
 const ExcelJs = require('exceljs');
 const pool = require('./bdd');
+const { error } = require('console');
 
-const makeReportCard = async (student_id, quarter_id) => {
+const makeReportClassCard = async (student_id, quarter_id, reportModel, gradeRow, coeffTotalCell, coeffSumCell, coeffSumCell2, definitiveNotesCell1
+  , definitiveNotesCell2, averageCell, studentCounterCell, maxAverageCell, classAverageCell, averageWriting, rankingCell
+ ) => {
   const studentClass = await pool.query(`SELECT class_id FROM students WHERE id=$1`, [student_id])
   const student = await pool.query(`
     SELECT id, last_name, first_name, class.class_name 
@@ -10,6 +13,8 @@ const makeReportCard = async (student_id, quarter_id) => {
     JOIN class ON class.class_id = students.class_id 
     WHERE id=$1
   `, [student_id]);
+
+
 
   const grades = await pool.query(`
     SELECT 
@@ -31,11 +36,12 @@ const makeReportCard = async (student_id, quarter_id) => {
   `, [student_id, quarter_id]);
 
   // Construction du chemin absolu pour le modèle de bulletin
-  const fileUrl = path.resolve(__dirname, 'assets', 'bulletin.xlsx');  // Utilisation de path.resolve pour chemin absolu
+  const fileUrl = reportModel;
 
   const workbook = new ExcelJs.Workbook();
   await workbook.xlsx.readFile(fileUrl);
-  const worksheet = workbook.getWorksheet(1); 
+  const worksheet = workbook.getWorksheet('MATRICE'); 
+
 
   // Remplir les cellules avec les informations de l'élève
   worksheet.getCell('K2').value = student.rows[0].last_name;
@@ -44,7 +50,7 @@ const makeReportCard = async (student_id, quarter_id) => {
   worksheet.getCell('K6').value = student.rows[0].id;
 
   // Remplir les cellules avec les notes
-  for (let row = 12; row <= 22; row++) {
+  for (let row = 12; row <= gradeRow; row++) {
     for (let col of ['L','M', 'N']) {
       const cell = worksheet.getCell(`${col}${row}`);
       cell.fill = {
@@ -55,7 +61,7 @@ const makeReportCard = async (student_id, quarter_id) => {
     }
   };
 
-  for (let row = 12; row <= 24; row++) {
+  for (let row = 12; row <= gradeRow; row++) {
    
       const cell = worksheet.getCell(`K${row}`);
       cell.fill = {
@@ -68,18 +74,24 @@ const makeReportCard = async (student_id, quarter_id) => {
 
   for (let col of ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']) {
    
-      const cell = worksheet.getCell(`${col}24`);
+      const cell = worksheet.getCell(`${col}${gradeRow}`);
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FDE9D9' } // Orange accent 6, clair 60%
       };
     
-  }
+  }const cell = worksheet.getCell(`A${gradeRow}`);
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFFFFFFF' } 
+  };
+
 
   // Ajouter des données de grades dans le bulletin
   for (let i = 0; i < grades.rows.length && i < 12; i++) {
-    const row = 12 + i; // ligne 12 à 23
+    const row = 12 + i; 
     const grade = grades.rows[i];
 
     if (grade.subject_name) {
@@ -115,8 +127,9 @@ const makeReportCard = async (student_id, quarter_id) => {
     WHERE class_id = (SELECT class_id FROM students WHERE id =$1)
   `, [student_id]);
 
-  worksheet.getCell('M24').value = `/ ${coeffTotal.rows[0].sum}`;
-  worksheet.getCell('F28').value = coeffSum.rows[0].sum;
+  worksheet.getCell(coeffTotalCell).value = `/ ${coeffTotal.rows[0].sum}`;
+  worksheet.getCell(coeffSumCell).value = coeffSum.rows[0].sum;
+  worksheet.getCell(coeffSumCell2).value = coeffSum.rows[0].sum;
 
   let totalNotesDefinitives = 0;
   worksheet.eachRow((row, rowNumber) => {
@@ -129,8 +142,9 @@ const makeReportCard = async (student_id, quarter_id) => {
     }
   });
 
-  worksheet.getCell('L24').value = totalNotesDefinitives;
-  worksheet.getCell('F27').value = totalNotesDefinitives;
+
+  worksheet.getCell(definitiveNotesCell1).value = totalNotesDefinitives;
+  worksheet.getCell(definitiveNotesCell2).value = totalNotesDefinitives;
   let moyenne = (totalNotesDefinitives / coeffSum.rows[0].sum).toFixed(2);
   const checkNote = await pool.query(`SELECT * FROM Report_info WHERE student_id = $1`, [student_id]);
   if(checkNote.rows.length === 0) {
@@ -140,37 +154,53 @@ const makeReportCard = async (student_id, quarter_id) => {
     await pool.query(`UPDATE Report_info SET average = $1 WHERE student_id = $2`, [moyenne, student_id]);
   }
     
-  worksheet.getCell('F29').value = moyenne;
+  worksheet.getCell(averageCell).value = moyenne;
 
   const studentNumber = await pool.query(`SELECT count(*) FROM students WHERE class_id = $1`, [studentClass.rows[0].class_id]);
-  maxAvg = await pool.query(`SELECT max(average) FROM Report_info`);
-  classAvg = await pool.query(`SELECT sum(average) FROM Report_info`);
-  worksheet.getCell('L27').value = studentNumber.rows[0].count;
-  worksheet.getCell('L28').value = maxAvg.rows[0].max;
-  worksheet.getCell('L29').value = (classAvg.rows[0].sum /studentNumber.rows[0].count).toFixed(2);
+  const maxAvg = await pool.query(`SELECT max(average) FROM Report_info`);
+  const classAvg = await pool.query(`SELECT sum(average) FROM Report_info`);
+  worksheet.getCell(studentCounterCell).value = studentNumber.rows[0].count;
+  worksheet.getCell(maxAverageCell).value = maxAvg.rows[0].max;
+  worksheet.getCell(classAverageCell).value = (classAvg.rows[0].sum /studentNumber.rows[0].count).toFixed(2);
 
 
 
   let quarter = '';
-  if (quarter_id === 1) {
+  let nextQuarter = '';
+  if (Number(quarter_id) === 1) {
     quarter = '1ER ';
-  } else if (quarter_id === 2) {
+    nextQuarter = '2ème';
+    worksheet.getCell(`A${Number(maxAverageCell.slice(1))+20}`).value =`Ose toujours avancer ! Elimine tes faiblesses, maximise tes forces; objectif au ${nextQuarter} Trim : MOYENNE DE________`
+  } else if (Number(quarter_id) === 2) {
     quarter = '2EME ';
-  } else if (quarter_id === 3) {
+    nextQuarter = '3ème';
+
+    worksheet.getCell(`A${Number(maxAverageCell.slice(1))+20}`).value =`Ose toujours avancer ! Elimine tes faiblesses, maximise tes forces; objectif au ${nextQuarter} Trim : MOYENNE DE________`
+  } else if (Number(quarter_id) === 3) {
     quarter = '3EME ';
+    worksheet.getCell(`A${Number(maxAverageCell.slice(1))+20}`).value =``
   }
 
   const now = new Date();
   const year = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
   const academicYear = `${year}-${year + 1}`;
 
-  worksheet.getCell('A29').value = `MOYENNE DU ${quarter} TRIMESTRE SUR 20`;
-  worksheet.getCell('A8').value = `BULLETIN D'EVALUATION_ANNEE SCOLAIRE : ${academicYear} ${quarter} TRIMESTRE`;
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0'); 
+  const createYear = now.getFullYear();
 
-  const studentList = await pool.query(`SELECT * FROM Report_info WHERE class_id = $1 order by average asc`, [studentClass.rows[0].class_id]);
+const dateFormatee = `${day}/${month}/${createYear}`;
+
+worksheet.getCell(`G${Number(rankingCell.slice(1))+10}`).value = dateFormatee;
+
+  worksheet.getCell(averageWriting).value = `MOYENNE DU ${quarter} TRIMESTRE SUR 20`;
+  worksheet.getCell('A8').value = `BULLETIN D'EVALUATION_ANNEE SCOLAIRE : ${academicYear} ${quarter} TRIMESTRE`;
+  
+
+  const studentList = await pool.query(`SELECT * FROM Report_info WHERE class_id = $1 order by average desc`, [studentClass.rows[0].class_id]);
   const studentRank = studentList.rows.findIndex(s => s.student_id === student_id) + 1;
 
-  worksheet.getCell('F30').value = studentRank;
+  worksheet.getCell(rankingCell).value = studentRank;
 
   // Sauvegarder le fichier généré
   workbook.calcProperties.fullCalcOnLoad = true;
@@ -180,4 +210,92 @@ const makeReportCard = async (student_id, quarter_id) => {
   return reportPath;  // Retourne le chemin du fichier généré
 };
 
-module.exports = makeReportCard;
+const generateClassReport = async(student_id, quarter_id) =>{
+  if(student_id && quarter_id) {
+    const class_id = await pool.query(`SELECT class_id FROM students WHERE id = $1`, [student_id]);
+    if(class_id.rows[0].class_id <=3){
+      console.log('Terminale');
+      let reportModel = path.resolve(__dirname, 'assets', 'Terminale_report.xlsx');
+      
+      return makeReportClassCard(student_id, quarter_id, reportModel, 22, 'M23', 'F26', 'K23', 'L23', 'F25', 'F27', 'L25', 'L26', 
+        'L27','A27', 'F28');
+
+    }else{
+      if(class_id.rows[0].class_id <=7){
+        let reportModel = path.resolve(__dirname, 'assets', 'HighSchool_report.xlsx');
+
+        return makeReportClassCard(student_id, quarter_id, reportModel, 23, 'M24', 'F27', 'K24', 'L24', 'F26', 'F28', 'L26', 'L27', 
+        'L28','A28', 'F29');
+      }else{
+        if(class_id.rows[0].class_id == 8){
+        let reportModel = path.resolve(__dirname, 'assets', 'Third_report.xlsx');
+        return makeReportClassCard(student_id, quarter_id, reportModel, 20, 'M21', 'F24', 'K21', 'L21', 'F23', 'F25', 'L23', 'L24', 
+        'L25','A25', 'F26');
+
+      }else{
+        if(class_id.rows[0].class_id <= 11){
+        let reportModel = path.resolve(__dirname, 'assets', 'College_report.xlsx');
+        return makeReportClassCard(student_id, quarter_id, reportModel, 23, 'M22', 'F25', 'K22', 'L22', 'F24', 'F26', 'L24', 'L25', 
+        'L24','A26', 'F27');
+        }else{
+        if(class_id.rows[0].class_id ==12){
+        let reportModel = path.resolve(__dirname, 'assets', 'CM2_report.xlsx');
+        return makeReportClassCard(student_id, quarter_id, reportModel, 18, 'M19', 'F22', 'K19', 'L19', 'F21', 'F23', 'L21', 'L22', 
+        'L23','A23', 'F24');
+        }else{
+          if(class_id.rows[0].class_id <= 14){
+            let reportModel = path.resolve(__dirname, 'assets', 'Primaire_mid_report.xlsx');
+      
+      return makeReportClassCard(student_id, quarter_id, reportModel, 29, 'M30', 'F33', 'K30', 'L30', 'F32', 'F34', 'L32', 'L33', 
+        'L34','A34', 'F35');
+          }else{
+            if(class_id.rows[0].class_id == 15){
+              let reportModel = path.resolve(__dirname, 'assets', 'CE1_report.xlsx');
+
+              return makeReportClassCard(student_id, quarter_id, reportModel, 25, 'M26', 'F29', 'K26', 'L26', 'F28', 'F30', 'L28', 'L29', 
+        'L30','A30', 'F31');
+              
+            };
+          }if(class_id.rows[0].class_id ==16){
+            let reportModel = path.resolve(__dirname, 'assets', 'CP_report.xlsx');
+      
+      return makeReportClassCard(student_id, quarter_id, reportModel, 26, 'M27', 'F31', 'K27', 'L27', 'F30', 'F32', 'L30', 'L31', 
+        'L32','A32', 'F33');
+          }else{
+            if(class_id.rows[0].class_id ==17){
+              let reportModel = path.resolve(__dirname, 'assets', 'MGS_report.xlsx');
+      
+      return makeReportClassCard(student_id, quarter_id, reportModel, 31, 'M32', 'F35', 'K32', 'L32', 'F34', 'F36', 'L34', 'L35', 
+        'L36','A36', 'F37');
+            }else{
+              if(class_id.rows[0].class_id <=19){
+                let reportModel = path.resolve(__dirname, 'assets', 'Presco_report.xlsx');
+
+                return makeReportClassCard(student_id, quarter_id, reportModel, 23, 'M24', 'F28', 'K24', 'L24', 'F27', 'F29', 'L27', 'L28', 
+        'L29','A29', 'F30');
+                }else{
+                  if(class_id.rows[0].class_id ==20){
+                    let reportModel = path.resolve(__dirname, 'assets', 'TPS_report.xlsx');
+
+                    return makeReportClassCard(student_id, quarter_id, reportModel, 20, 'M21', 'F25', 'K21', 'L21', 'F24', 'F26', 'L24', 'L25', 
+        'L26','A26', 'F27'); 
+                }else{
+                  throw error('Invalid class_id');
+
+                }
+              }
+
+            }
+          }
+        }
+      }
+      }
+      }
+
+      }
+  }else{
+throw error('Missing student_id or quarter_id');
+  }
+};
+
+module.exports = {generateClassReport, makeReportClassCard};
