@@ -90,7 +90,7 @@ const makeReportClassCard = async (student_id, quarter_id, reportModel, gradeRow
 
 
   // Ajouter des données de grades dans le bulletin
-  for (let i = 0; i < grades.rows.length && i < 12; i++) {
+  for (let i = 0; i < grades.rows.length -1 && i < 12; i++) {
     const row = 12 + i; 
     const grade = grades.rows[i];
 
@@ -145,23 +145,26 @@ const makeReportClassCard = async (student_id, quarter_id, reportModel, gradeRow
 
   worksheet.getCell(definitiveNotesCell1).value = totalNotesDefinitives;
   worksheet.getCell(definitiveNotesCell2).value = totalNotesDefinitives;
-  let moyenne = (totalNotesDefinitives / coeffSum.rows[0].sum).toFixed(2);
-  const checkNote = await pool.query(`SELECT * FROM Report_info WHERE student_id = $1`, [student_id]);
-  if(checkNote.rows.length === 0) {
-    await pool.query(`INSERT INTO Report_info (student_id, class_id, quarter_id, average) VALUES ($1, $2, $3, $4)`, [student_id, studentClass.rows[0].class_id, quarter_id, moyenne]);
-  }
-  else {
-    await pool.query(`UPDATE Report_info SET average = $1 WHERE student_id = $2`, [moyenne, student_id]);
-  }
+  let average = await pool.query(`SELECT average FROM Report_info WHERE student_id = $1 AND quarter_id = $2`, [student_id, quarter_id]);
+  average = average.rows[0].average;
+
+  
     
-  worksheet.getCell(averageCell).value = moyenne;
+  worksheet.getCell(averageCell).value = average;
 
   const studentNumber = await pool.query(`SELECT count(*) FROM students WHERE class_id = $1`, [studentClass.rows[0].class_id]);
-  const maxAvg = await pool.query(`SELECT max(average) FROM Report_info`);
-  const classAvg = await pool.query(`SELECT sum(average) FROM Report_info`);
+  const maxAvg = await pool.query(`SELECT max(average) FROM Report_info where class_id = $1`, [studentClass.rows[0].class_id]);
+  const classAvg = await pool.query(`SELECT sum(average) FROM Report_info WHERE class_id=$1`, [studentClass.rows[0].class_id]);
   worksheet.getCell(studentCounterCell).value = studentNumber.rows[0].count;
   worksheet.getCell(maxAverageCell).value = maxAvg.rows[0].max;
   worksheet.getCell(classAverageCell).value = (classAvg.rows[0].sum /studentNumber.rows[0].count).toFixed(2);
+
+  const conduite = await pool.query(`SELECT grade FROM grade 
+    WHERE student_id = $1 AND subject_id =100 AND quarter_id = $2`
+    , [student_id, quarter_id]);
+  if(conduite.rows.length > 0){
+    worksheet.getCell(`L${gradeRow}`).value = conduite.rows[0].grade || 0;
+  }
 
 
 

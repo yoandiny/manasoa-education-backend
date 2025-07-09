@@ -8,7 +8,8 @@ const JSZip = require('jszip');
 const fs = require('fs');
 const path = require('path');
 const report = require('./reportCard.js');
-const { buffer } = require('stream/consumers');
+const { get } = require('http');
+
 
 
 const PORT = process.env.PORT || 3001;
@@ -132,7 +133,7 @@ app.post('/updateStudent', async (req, res) => {
         res.status(200).json(getStudentInfo.rows[0]);
       }
 
-    res.status(200).json({ message: "Élève mis à jour avec succès !" });
+    
 
   } catch (error) {
     console.error('Erreur lors de la mise à jour de l\'élève:', error);
@@ -283,7 +284,36 @@ app.post('/saveGrades', async (req, res) => {
   }
 });
 
+app.post('/reportFinales', async (req, res) => {
+  try {
+    const {student_id, quarter_id} = req.body
+    const coeffSum = await pool.query(`
+      select sum(coeff) from class_subject where class_id=(select class_id from students where id=$1)
+      `, [student_id]);
+    const finales = await pool.query(`
+      select grade.subject_id, quarter_id, coeff, grade from grade 
+join class_subject on class_subject.subject_id = grade.subject_id
+where student_id=$1 and type_note_id=5 and quarter_id=$2 AND class_id = (select class_id from students where id=$1) 
+order by subject_id asc
+      `, [student_id, quarter_id]);
 
+    let definitiveNote = 0;
+    for(let i=0; i< finales.rows.length; i++){
+      definitiveNote = (finales.rows[i].grade * finales.rows[i].coeff) + definitiveNote;
+      
+    }
+    const getClass = await pool.query(`
+      select class_id from students where id=$1`, [student_id]);
+    definitiveNote = (definitiveNote/coeffSum.rows[0].sum).toFixed(2);
+     await pool.query(`INSERT INTO Report_info (student_id, quarter_id, class_id, average)
+       VALUES ($1, $2, $3, $4) ON CONFLICT (student_id, quarter_id) DO UPDATE SET average = EXCLUDED.average`, [student_id, quarter_id, getClass.rows[0].class_id, definitiveNote])
+    res.status(200).json({definitiveNote});
+    
+  } catch (err) {
+    console.error('Erreur dans /reportFinales:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 
 
@@ -381,7 +411,7 @@ app.post('/generateClassReport', async (req, res) => {
 
     const classes = await pool.query(`SELECT id FROM students WHERE class_id = $1`, [class_id]);
     
-    for(i=0; i< classes.rows.length; i++){
+    for(let i=0; i< classes.rows.length; i++){
       const id = classes.rows[i].id;
       
       const reportPath = await report.generateClassReport(id, quarter_id); 
