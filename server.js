@@ -445,4 +445,5 @@ app.post('/generateClassReport', async (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Serveur Express démarré sur le port ${PORT}`);
+  console.log('Server launched');
 });
