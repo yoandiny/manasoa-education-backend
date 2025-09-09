@@ -8,7 +8,7 @@ const JSZip = require('jszip');
 const fs = require('fs');
 const path = require('path');
 const report = require('./reportCard.js');
-const { get } = require('http');
+
 
 
 
@@ -19,7 +19,7 @@ app.use(express.json());
 
 
 
-app.post('/addStudent', async (req, res) => {
+app.post('/students', async (req, res) => {
   try {
     const { id, last_name, first_name, class_id } = req.body;
 
@@ -55,7 +55,7 @@ app.post('/addStudent', async (req, res) => {
 });
 
 
-app.post('/deleteStudent', async (req, res) => {
+app.delete('/students', async (req, res) => {
   try {
     const { id } = req.body;
     const delStudent = await pool.query('DELETE FROM students WHERE id = $1', [id]);
@@ -66,7 +66,7 @@ app.post('/deleteStudent', async (req, res) => {
   }
 });
 
-app.post('/updateStudent', async (req, res) => {
+app.put('/students', async (req, res) => {
   const {
     id, 
     last_name,
@@ -197,7 +197,7 @@ app.get("/getStudentInfo", async (req, res) => {
 });
 
 
-app.get('/getClasses', async (req, res) => {
+app.get('/class', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM class ORDER BY class_id ASC');
     res.status(200).json(result.rows);
@@ -207,7 +207,7 @@ app.get('/getClasses', async (req, res) => {
   }
 });
 
-app.get('/getSubjects', async (req, res) => {
+app.get('/subject', async (req, res) => {
   const {class_id, quarter_id, student_id} = req.query;
   try {
     const result = await pool.query(`
