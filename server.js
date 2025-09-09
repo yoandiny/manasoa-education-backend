@@ -339,7 +339,7 @@ app.get('/newStudents', async (req, res) => {
   }
 });
 
-app.get('/getAllStudents', async (req, res) => {
+app.get('/students', async (req, res) => {
     try {
             const allStudents = await pool.query(`SELECT id, last_name, first_name, class_name,
                  absence FROM students inner join class on students.class_id = class.class_id ORDER BY class_name DESC`);
