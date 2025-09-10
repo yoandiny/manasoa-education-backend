@@ -185,7 +185,7 @@ app.post('/searchClass', async (req, res) => {
   }
 });
 
-app.get('/getAll', async (res, req)=>{
+app.get('/getAll', async (req,res )=>{
   const {table} = req.query;
   try {
     const getTable = await pool.query(`SELECT * FROM ${table}`);
