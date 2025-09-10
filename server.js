@@ -185,6 +185,11 @@ app.post('/searchClass', async (req, res) => {
   }
 });
 
+app.get('/getAll', async (res, req)=>{
+  const {table} = req.query;
+  const res = await pool.query(`SELECT * FROM ${table}`);
+})
+
 app.get("/getStudentInfo", async (req, res) => {
     const {id} = req.query;
   try {
