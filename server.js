@@ -187,7 +187,16 @@ app.post('/searchClass', async (req, res) => {
 
 app.get('/getAll', async (res, req)=>{
   const {table} = req.query;
-  const res = await pool.query(`SELECT * FROM ${table}`);
+  try {
+    const getTable = await pool.query(`SELECT * FROM ${table}`);
+  if(getTable.rows.length > 0){
+    res.status(200).json(getTable.rows);
+  }else{
+    res.status(404).json({ error: 'Table non trouvée' });
+  }
+  } catch (error) {
+    console.error('Erreur dans /getAll:', error);
+  }
 })
 
 app.get("/getStudentInfo", async (req, res) => {
