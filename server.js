@@ -256,30 +256,20 @@ app.post('/grade', async (req, res) => {
   try {
     let grades = req.body;
 
-    // Si ce n'est pas un tableau, transforme en tableau
+    // S'assurer que grades est un tableau
     if (!Array.isArray(grades)) grades = [grades];
 
     for (const grade of grades) {
-      const interrogation1 = parseFloat(grade.interrogation1) || 0;
-      const interrogation2 = parseFloat(grade.interrogation2) || 0;
-      const evaluation = parseFloat(grade.evaluation) || 0;
-      const bonus = parseFloat(grade.bonus) || 0;
+      const student_id = grade.student_id;
+      const subject_id = grade.subject_id;
+      const quarter_id = grade.quarter_id;
 
-      const finalNote = Math.min(
-        Math.round(((interrogation1 + interrogation2 + evaluation) / 3 + bonus) * 100) / 100,
-        20 // limite à 20
-      );
+      // grade.notes : { type_id: note }
+      const notes = grade.notes;
 
-      // Tableau des notes à insérer
-      const notes = [
-        { type_note_id: 1, value: interrogation1 },
-        { type_note_id: 2, value: interrogation2 },
-        { type_note_id: 3, value: evaluation },
-        { type_note_id: 4, value: bonus },
-        { type_note_id: 5, value: finalNote } // note finale calculée
-      ];
+      for (const [type_id, noteValue] of Object.entries(notes)) {
+        const note = parseFloat(noteValue) || 0;
 
-      for (const note of notes) {
         await pool.query(
           `
           INSERT INTO grade (student_id, subject_id, grade, quarter_id, type_note_id)
@@ -287,17 +277,18 @@ app.post('/grade', async (req, res) => {
           ON CONFLICT (student_id, subject_id, quarter_id, type_note_id)
           DO UPDATE SET grade = EXCLUDED.grade
           `,
-          [grade.student_id, grade.subject_id, note.value, grade.quarter_id, note.type_note_id]
+          [student_id, subject_id, note, quarter_id, parseInt(type_id)]
         );
       }
     }
 
-    res.status(200).json({ message: 'Notes enregistrées avec calcul automatique de la note finale.' });
+    res.status(200).json({ message: 'Notes enregistrées avec succès.' });
   } catch (error) {
     console.error('Erreur dans /grade:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
+
 
 
 app.post('/reportFinales', async (req, res) => {
