@@ -253,9 +253,12 @@ app.get('/subject', async (req, res) => {
 })
 
 app.post('/grade', async (req, res) => {
-  const grades = req.body;
-
   try {
+    let grades = req.body;
+
+    // Si ce n'est pas un tableau, transforme en tableau
+    if (!Array.isArray(grades)) grades = [grades];
+
     for (const grade of grades) {
       const interrogation1 = parseFloat(grade.interrogation1) || 0;
       const interrogation2 = parseFloat(grade.interrogation2) || 0;
@@ -267,36 +270,35 @@ app.post('/grade', async (req, res) => {
         20 // limite à 20
       );
 
+      // Tableau des notes à insérer
       const notes = [
         { type_note_id: 1, value: interrogation1 },
         { type_note_id: 2, value: interrogation2 },
         { type_note_id: 3, value: evaluation },
         { type_note_id: 4, value: bonus },
-        { type_note_id: 5, value: finalNote } // ici on injecte le calcul
+        { type_note_id: 5, value: finalNote } // note finale calculée
       ];
 
       for (const note of notes) {
-        await pool.query(`
+        await pool.query(
+          `
           INSERT INTO grade (student_id, subject_id, grade, quarter_id, type_note_id)
           VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (student_id, subject_id, quarter_id, type_note_id)
           DO UPDATE SET grade = EXCLUDED.grade
-        `, [
-          grade.student_id,
-          grade.subject_id,
-          note.value,
-          grade.quarter_id,
-          note.type_note_id
-        ]);
+          `,
+          [grade.student_id, grade.subject_id, note.value, grade.quarter_id, note.type_note_id]
+        );
       }
     }
 
     res.status(200).json({ message: 'Notes enregistrées avec calcul automatique de la note finale.' });
   } catch (error) {
-    console.error('Erreur dans /saveGrades:', error);
+    console.error('Erreur dans /grade:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
+
 
 app.post('/reportFinales', async (req, res) => {
   try {
