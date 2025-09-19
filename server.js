@@ -252,7 +252,7 @@ app.get('/subject', async (req, res) => {
   }
 })
 
-app.post('/saveGrades', async (req, res) => {
+app.post('/grade', async (req, res) => {
   const grades = req.body;
 
   try {
