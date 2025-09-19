@@ -3,6 +3,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 const JSZip = require('jszip');
+const crypto = require("crypto");
 
 
 const fs = require('fs');
@@ -435,6 +436,22 @@ app.post('/generateClassReport', async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur dans /generateClassReport:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.post('/payment', async (req, res) => {
+  try {
+    const { student_id, amount, payment_date, description } = req.body;
+    const payment_id = crypto.randomUUID();
+
+    await pool.query(`
+      INSERT INTO payments (payment_id, student_id, description, amount, payment_date)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [payment_id, student_id, description, amount, payment_date]);
+    res.status(200).json({ message: 'Paiement enregistré avec succès' });
+  } catch (error) {
+    console.error('Erreur dans /payment:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
