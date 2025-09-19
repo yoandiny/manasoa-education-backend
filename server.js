@@ -253,41 +253,33 @@ app.get('/subject', async (req, res) => {
 })
 
 app.post('/grade', async (req, res) => {
+  const grade = req.body; // un seul objet de note
+
+  if (!grade.student_id || !grade.subject_id || !grade.type_id || !grade.quarter_id || grade.note == null) {
+    return res.status(400).json({ error: 'Données manquantes' });
+  }
+
   try {
-    let grades = req.body;
+    await pool.query(`
+      INSERT INTO grade (student_id, subject_id, grade, quarter_id, type_note_id)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (student_id, subject_id, quarter_id, type_note_id)
+      DO UPDATE SET grade = EXCLUDED.grade
+    `, [
+      grade.student_id,
+      grade.subject_id,
+      grade.note,
+      grade.quarter_id,
+      grade.type_id
+    ]);
 
-    // S'assurer que grades est un tableau
-    if (!Array.isArray(grades)) grades = [grades];
-
-    for (const grade of grades) {
-      const student_id = grade.student_id;
-      const subject_id = grade.subject_id;
-      const quarter_id = grade.quarter_id;
-
-      // grade.notes : { type_id: note }
-      const notes = grade.notes;
-
-      for (const [type_id, noteValue] of Object.entries(notes)) {
-        const note = parseFloat(noteValue) || 0;
-
-        await pool.query(
-          `
-          INSERT INTO grade (student_id, subject_id, grade, quarter_id, type_note_id)
-          VALUES ($1, $2, $3, $4, $5)
-          ON CONFLICT (student_id, subject_id, quarter_id, type_note_id)
-          DO UPDATE SET grade = EXCLUDED.grade
-          `,
-          [student_id, subject_id, note, quarter_id, parseInt(type_id)]
-        );
-      }
-    }
-
-    res.status(200).json({ message: 'Notes enregistrées avec succès.' });
+    res.status(200).json({ message: 'Note enregistrée avec succès.' });
   } catch (error) {
     console.error('Erreur dans /grade:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
+
 
 
 
