@@ -467,7 +467,7 @@ app.delete('/payment/:id', async (req, res) => {
   }
 });
 
-app.delete('/student/:id', async (req, res) => {
+app.delete('/students/:id', async (req, res) => {
   try {
     const { id } = req.params.id;
     await pool.query(`DELETE FROM students WHERE id = $1`, [id]);
