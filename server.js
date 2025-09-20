@@ -456,6 +456,28 @@ app.post('/payment', async (req, res) => {
   }
 });
 
+app.delete('/payment/:id', async (req, res) => {
+  try {
+    const { payment_id } = req.params.id;
+    await pool.query(`DELETE FROM payment WHERE payment_id = $1`, [payment_id]);
+    res.status(200).json({ message: 'Paiement supprimé avec succès' });
+  } catch (error) {
+    console.error('Erreur dans /payment:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.delete('/student/:id', async (req, res) => {
+  try {
+    const { id } = req.params.id;
+    await pool.query(`DELETE FROM students WHERE id = $1`, [id]);
+    res.status(200).json({ message: 'Élève supprimé avec succès' });
+  } catch (error) {
+    console.error('Erreur dans /student:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 
 
 
