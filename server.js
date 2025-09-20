@@ -446,7 +446,7 @@ app.post('/payment', async (req, res) => {
     const payment_id = crypto.randomUUID();
 
     await pool.query(`
-      INSERT INTO payments (payment_id, student_id, description, amount, payment_date)
+      INSERT INTO payment (payment_id, student_id, description, amount, payment_date)
       VALUES ($1, $2, $3, $4, $5)
     `, [payment_id, student_id, description, amount, payment_date]);
     res.status(200).json({ message: 'Paiement enregistré avec succès' });
