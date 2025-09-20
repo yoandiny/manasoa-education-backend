@@ -458,7 +458,7 @@ app.post('/payment', async (req, res) => {
 
 app.delete('/payment/:id', async (req, res) => {
   try {
-    const { payment_id } = req.params.id;
+    const payment_id = req.params.id;
     await pool.query(`DELETE FROM payment WHERE payment_id = $1`, [payment_id]);
     res.status(200).json({ message: 'Paiement supprimé avec succès' });
   } catch (error) {
@@ -469,7 +469,7 @@ app.delete('/payment/:id', async (req, res) => {
 
 app.delete('/students/:id', async (req, res) => {
   try {
-    const { id } = req.params.id;
+    const id  = req.params.id;
     await pool.query(`DELETE FROM students WHERE id = $1`, [id]);
     res.status(200).json({ message: 'Élève supprimé avec succès' });
   } catch (error) {
