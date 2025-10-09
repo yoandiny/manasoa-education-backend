@@ -1,487 +1,448 @@
-const pool = require('./bdd.js');
-const express = require('express');
+import pool from './bdd.js';
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import cors from 'cors';
+import {v4 as uuidv4} from 'uuid';
+
 const app = express();
-const cors = require('cors');
-const JSZip = require('jszip');
-const crypto = require("crypto");
+const PORT = process.env.PORT || 5000;
 
-
-const fs = require('fs');
-const path = require('path');
-const report = require('./reportCard.js');
-
-
-
-
-const PORT = process.env.PORT || 3001;
-
-app.use(cors({ origin: '*' }));
+// Middleware
+app.use(cors());
 app.use(express.json());
 
+const JWT_SECRET = process.env.JWT_SECRET || 'secret_key_admin';
 
+app.get('/', (req, res) => {
+  res.send('Welcome to the Petit Lascar Backend!');
+});
+
+app.post('/admin', async (req, res) => {
+  const { first_name, last_name, role, password, phone } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const id = uuidv4();
+  console.log(req.body);
+  try {
+    const result = await pool.query('INSERT INTO admins (id, first_name, last_name, role, password, phone_number) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [id, first_name, last_name,role, hashedPassword, phone]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
+
+app.post('/login', async (req, res) => {
+  const { phone_number, password } = req.body;
+
+  if (!phone_number || !password) {
+    return res.status(400).json({ message: 'Nom et mot de passe requis' });
+  }
+
+  try {
+    const result = await pool.query('SELECT * FROM admins WHERE phone_number = $1', [phone_number]);
+    const user = result.rows[0];
+
+    if (!user) return res.status(401).json({ message: 'Identifiants incorrects' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).json({ message: 'Identifiants incorrects' });
+
+    const token = jwt.sign(
+      { id: user.id, first_name: user.first_name, last_name: user.last_name, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    res.json({ token, user: { id: user.id, first_name: user.first_name, last_name: user.last_name, role: user.role, phone_number: user.phone_number } });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
+export const authenticateUser = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ message: 'Token manquant' });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // informations utilisateur
+    next();
+  } catch (error) {
+    return res.status(403).json({ message: 'Token invalide' });
+  }
+};
+
+app.get('/users/check', authenticateUser, (req, res) => {
+  res.json({ connected: true, user: req.user });
+});
+
+
+
+app.get('/students', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM students JOIN class ON students.class_id = class.class_id ORDER BY class.class_id ASC');
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
 
 app.post('/students', async (req, res) => {
+  const { id, firstName, lastName, birthDate, classId } = req.body;
   try {
-    const { id, last_name, first_name, class_id } = req.body;
+    const result = await pool.query('INSERT INTO students (id, first_name, last_name, birthdate, class_id) VALUES ($1, $2, $3, $4, $5) RETURNING *', [id, firstName, lastName, birthDate, classId]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
 
-    const result = await pool.query(
-      'INSERT INTO students (id, last_name, first_name, class_id) VALUES ($1, $2, $3, $4) RETURNING *',
-      [id, last_name, first_name, class_id]
-    );
-
-    const subjects = await pool.query(
-      'SELECT subject_id FROM class_subject WHERE class_id = $1',
-      [class_id]
-    );
-    const quarters = await pool.query('SELECT quarter_id FROM quarter');
-    const types = await pool.query('SELECT type_id FROM note_type');
-
-    for (const subject of subjects.rows) {
-      for (const quarter of quarters.rows) {
-        for (const type of types.rows) {
-          await pool.query(
-            `INSERT INTO grade (student_id, subject_id, quarter_id, type_note_id, grade)
-             VALUES ($1, $2, $3, $4, 0)`,
-            [id, subject.subject_id, quarter.quarter_id, type.type_id]
-          );
-        }
-      }
+app.get('/students/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM students LEFT JOIN class ON students.class_id = class.class_id WHERE id = $1', [id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Student not found');
     }
-
-    res.status(200).json(result.rows[0]);
+    res.json(result.rows[0]);
   } catch (error) {
-    console.error('Erreur dans /addStudent:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
-
-app.delete('/students', async (req, res) => {
-  try {
-    const { id } = req.body;
-    const delStudent = await pool.query('DELETE FROM students WHERE id = $1', [id]);
-    res.status(200).json({success: 'Élève supprimé'});
-  } catch (error) {
-    console.error('Erreur dans /deleteStudent:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.put('/students', async (req, res) => {
-  const {
-    id, 
-    last_name,
-    first_name,
-    birthdate,
-    student_contact,
-    address,
-    father_name,
-    father_contact,
-    mother_name,
-    mother_contact,
-    absence
+app.put('/students/:id', async (req, res) => {
+  const { id } = req.params;
+  const { 
+    first_name, 
+    last_name, 
+    birthdate, 
+    class_id, 
+    absence, 
+    address, 
+    student_contact, 
+    father_contact 
   } = req.body;
 
   try {
-    if (!id) {
-      return res.status(400).json({ message: "ID actuel requis pour retrouver l'élève." });
+    let sqlBirthdate = null;
+
+    if (birthdate) {
+      // Vérifie si birthdate est un timestamp
+      if (!isNaN(birthdate)) {
+        sqlBirthdate = new Date(Number(birthdate)).toISOString().split('T')[0];
+      } 
+      // Vérifie si c'est déjà une date SQL
+      else if (/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) {
+        sqlBirthdate = birthdate;
+      } 
+      // Autre format (ex: ISO string)
+      else {
+        sqlBirthdate = new Date(birthdate).toISOString().split('T')[0];
+      }
     }
 
-    // Vérifier que l'élève avec l'ancien id existe
-    const checkStudent = await pool.query('SELECT * FROM students WHERE id = $1', [id]);
-    if (checkStudent.rowCount === 0) {
-      return res.status(404).json({ message: "Élève non trouvé avec cet ID." });
-    }
-
-    // Si new_id est envoyé, on met à jour avec, sinon on garde le même id
-    const final_id = id;
-
-    // Update de toutes les infos
-    const updateStudent = await pool.query(
+    const result = await pool.query(
       `UPDATE students 
-       SET 
-         id = $1,
-         last_name = $2,
-         first_name = $3,
-         birthdate = $4,
-         student_contact = $5,
-         address = $6,
-         father_name = $7,
-         father_contact = $8,
-         mother_name = $9,
-         mother_contact = $10,
-         absence = $11
-       WHERE id = $12`,
-      [
-        final_id,          
-        last_name,
-        first_name,
-        birthdate,
-        student_contact,
-        address,
-        father_name,
-        father_contact,
-        mother_name,
-        mother_contact,
-        absence,
-        id                 
-      ]
+       SET first_name = $1, 
+           last_name = $2, 
+           birthdate = $3, 
+           class_id = $4, 
+           absence = $5, 
+           address = $6, 
+           student_contact = $7, 
+           father_contact = $8
+       WHERE id = $9 
+       RETURNING *`,
+      [first_name, last_name, sqlBirthdate, class_id, absence, address, student_contact, father_contact, id]
     );
-      if(updateStudent.rowCount === 0){
-        return res.status(404).json({ message: "Élève non trouvé avec cet ID." });
-      }else{
-        getStudentInfo = await pool.query('SELECT * FROM students WHERE id = $1', [final_id]);
-        res.status(200).json(getStudentInfo.rows[0]);
-      }
 
-    
-
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour de l\'élève:', error);
-    res.status(500).json({ message: "Erreur serveur lors de la mise à jour de l'élève." });
-  }
-});
-
-
-app.get('/searchStudent', async (req, res) => {
-  const { name } = req.query;
-
-  if (!name || name.trim() === "") {
-    return res.status(400).json({ error: "Paramètre 'name' manquant" });
-  }
-
-  try {
-    const search = await pool.query(`
-      SELECT * FROM students 
-      WHERE LOWER(first_name) LIKE LOWER($1) 
-         OR LOWER(last_name) LIKE LOWER($1) 
-         OR LOWER(id) LIKE LOWER($1)
-    `, [`%${name}%`]);
-
-    if (search.rows.length > 0) {
-      res.status(200).json(search.rows);
-    } else {
-      res.status(404).json({ error: 'Aucun élève trouvé' });
+    if (result.rows.length === 0) {
+      return res.status(404).send('Student not found');
     }
 
-  } catch (err) {
-    console.error("Erreur dans /searchStudent:", err);
-    res.status(500).json({ error: "Erreur serveur" });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating student:', error);
+    res.status(500).send('Server error');
   }
 });
 
-app.post('/searchClass', async (req, res) => {
-    const {class_name} = req.body;
+
+app.get('/teachers', async (req, res) => {
   try {
-      const search = await pool.query(`SELECT class_id FROM class WHERE class_name = $1`, [class_name]);
-      if(search.rows.length > 0){
-        res.status(200).json(search.rows[0]);
-      }else{
-        res.status(404).json({ error: 'Classe non trouvée' });
-      }
+    const result = await pool.query('SELECT * FROM teachers join subject on teachers.subject_id = subject.subject_id');
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
+
+app.post('/teachers', async (req, res) => {
+  const { firstName, lastName, subject, phoneNumber } = req.body;
+  const id = uuidv4();
+  try {
+    const result = await pool.query('INSERT INTO teachers (id, first_name, last_name, subject_id, phone_number) VALUES ($1, $2, $3, $4, $5) RETURNING *', [id, firstName, lastName, Number(subject), phoneNumber]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
+app.put('/teachers/:id', async (req, res) => {
+  const { id } = req.params;
+  const { first_name, last_name, subject, phone_number } = req.body;
+  try {
+    const result = await pool.query('UPDATE teachers SET first_name = $1, last_name = $2, subject_id = $3, phone_number = $4 WHERE id = $5 RETURNING *', [first_name, last_name, Number(subject), phone_number, id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Teacher not found');
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
+app.delete('/teachers/:id', async (req, res) => {
+  const {id} = req.params;
+  try {
+    const result = await pool.query('DELETE FROM teachers WHERE id=$1 returning *', [id]);
+    if(result.rows[0].length ===0){
+      res.status(404).send({"error": "Teacher not found"})
+
+    }
+    res.status(200).send({"success": "Teacher successfully deleted"})
     
   } catch (error) {
-    console.error('Erreur dans /searchClass:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('An error as occured while deleting teacher')
+    
+  }
+});
+  
+
+app.get('/teachers/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM teachers WHERE id = $1', [id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Teacher not found');
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
-app.get('/getAll', async (req,res )=>{
-  const {table} = req.query;
+app.get('/subject', async (req, res) => {
   try {
-    const getTable = await pool.query(`SELECT * FROM ${table}`);
-  if(getTable.rows.length > 0){
-    res.status(200).json(getTable.rows);
-  }else{
-    res.status(404).json({ error: 'Table non trouvée' });
-  }
+    const result = await pool.query(`SELECT * FROM subject JOIN class_subject ON 
+    subject.subject_id = class_subject.subject_id
+    JOIN class ON class.class_id = class_subject.class_id
+    ORDER BY subject.subject_id ASC`);
+    res.json(result.rows);
   } catch (error) {
-    console.error('Erreur dans /getAll:', error);
+    console.error(error);
+    res.status(500).send('Server error');
   }
-})
+});
 
-app.get("/getStudentInfo", async (req, res) => {
-    const {id} = req.query;
+app.post('/subject', async (req, res) => {
+  const {  subject_name, class_id, coeff } = req.body;
+  const id = await pool.query('SELECT count(*) as max_id FROM subject');
   try {
-    const result = await pool.query("SELECT * FROM students INNER JOIN class ON students.class_id = class.class_id WHERE id=$1", [id]);
-    res.status(200).json(result.rows);
-  } catch (err) {
-    console.error('Erreur dans /getStudentInfo:', err);
-    res.status(500).json({ error: 'Erreur serveur' });
+    const result = await pool.query('INSERT INTO subject (subject_id, subject_name) VALUES ($1, $2) RETURNING *', [Number(id.rows[0].max_id) + 1, subject_name]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Subject not created');
+    }
+    const addCoeff = await pool.query('INSERT INTO class_subject (subject_id, class_id, coeff) VALUES ($1, $2, $3) RETURNING *', [Number(id.rows[0].max_id) + 1, class_id, coeff]);
+    if(addCoeff.rows.length === 0) {
+      return res.status(404).send('Subject coeff not created');
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
+app.put('/subject/:id', async (req, res) => {
+  const { id } = req.params;
+  const { subject_name, class_id, coeff } = req.body;
+
+  try {
+    const subjectName = await pool.query('UPDATE subject SET subject_name = $1 WHERE subject_id = $2 RETURNING *', [subject_name, id]);
+    if (subjectName.rows.length === 0) {
+      return res.status(404).send('Subject not found');
+    }
+    const result = await pool.query(
+      `UPDATE class_subject 
+       SET class_id = $1, coeff = $2
+       WHERE subject_id = $3
+       RETURNING *`,
+      [ class_id, coeff, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).send('Subject not found');
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating subject:', error);
+    res.status(500).send('Server error');
+  }
+});
+
+app.delete('/subject/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM subject WHERE subject_id = $1 RETURNING *', [id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Subject not found');
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
 
 app.get('/class', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM class ORDER BY class_id ASC');
-    res.status(200).json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur serveur lors de la récupération des classes" });
-  }
-});
-
-app.get('/subject', async (req, res) => {
-  const {class_id, quarter_id, student_id} = req.query;
-  try {
-    const result = await pool.query(`
-          SELECT 
-      s.subject_id,
-      s.subject_name,
-      cs.coeff,
-      MAX(g.grade) FILTER (WHERE nt.type_note = '1er Interro') AS interrogation1,
-      MAX(g.grade) FILTER (WHERE nt.type_note = '2eme Interro') AS interrogation2,
-      MAX(g.grade) FILTER (WHERE nt.type_note = 'Examen') AS evaluation,
-      MAX(g.grade) FILTER (WHERE nt.type_note = 'Bonus') AS bonus,
-      MAX(g.grade) FILTER (WHERE nt.type_note = 'Note finale') AS final
-    FROM subject s
-    JOIN class_subject cs ON cs.subject_id = s.subject_id
-    LEFT JOIN grade g ON g.subject_id = s.subject_id
-      AND g.quarter_id = $2
-      AND g.student_id = $3
-    LEFT JOIN note_type nt ON nt.type_id = g.type_note_id
-    WHERE cs.class_id = $1
-    GROUP BY s.subject_id, s.subject_name, cs.coeff
-    ORDER BY s.subject_id;
-
-`,[class_id, quarter_id, student_id]);
-    res.status(200).json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur serveur lors de la récupération des matières" });
-  }
-})
-
-app.post('/grade', async (req, res) => {
-  const grade = req.body; // un seul objet de note
-
-  if (!grade.student_id || !grade.subject_id || !grade.type_id || !grade.quarter_id || grade.note == null) {
-    return res.status(400).json({ error: 'Données manquantes' });
-  }
-
-  try {
-    await pool.query(`
-      INSERT INTO grade (student_id, subject_id, grade, quarter_id, type_note_id)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (student_id, subject_id, quarter_id, type_note_id)
-      DO UPDATE SET grade = EXCLUDED.grade
-    `, [
-      grade.student_id,
-      grade.subject_id,
-      grade.note,
-      grade.quarter_id,
-      grade.type_id
-    ]);
-
-    res.status(200).json({ message: 'Note enregistrée avec succès.' });
-  } catch (error) {
-    console.error('Erreur dans /grade:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-
-
-
-app.post('/reportFinales', async (req, res) => {
-  try {
-    const {student_id, quarter_id} = req.body
-    const coeffSum = await pool.query(`
-      select sum(coeff) from class_subject where class_id=(select class_id from students where id=$1)
-      `, [student_id]);
-    const finales = await pool.query(`
-      select grade.subject_id, quarter_id, coeff, grade from grade 
-join class_subject on class_subject.subject_id = grade.subject_id
-where student_id=$1 and type_note_id=5 and quarter_id=$2 AND class_id = (select class_id from students where id=$1) 
-order by subject_id asc
-      `, [student_id, quarter_id]);
-
-    let definitiveNote = 0;
-    for(let i=0; i< finales.rows.length; i++){
-      definitiveNote = (finales.rows[i].grade * finales.rows[i].coeff) + definitiveNote;
-      
-    }
-    const getClass = await pool.query(`
-      select class_id from students where id=$1`, [student_id]);
-    definitiveNote = (definitiveNote/coeffSum.rows[0].sum).toFixed(2);
-     await pool.query(`INSERT INTO Report_info (student_id, quarter_id, class_id, average)
-       VALUES ($1, $2, $3, $4) ON CONFLICT (student_id, quarter_id) DO UPDATE SET average = EXCLUDED.average`, [student_id, quarter_id, getClass.rows[0].class_id, definitiveNote])
-    res.status(200).json({definitiveNote});
-    
-  } catch (err) {
-    console.error('Erreur dans /reportFinales:', err);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-
-
-
-app.get('/getTotalStudents', async (req, res) => {
-  try {
-    const countStudent = await pool.query('SELECT count(*) FROM students');
-    res.status(200).json(countStudent.rows[0].count);
-  } catch (err) {
-    console.error('Erreur dans /getTotalStudents:', err);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.get('/newStudents', async (req, res) => {
-  try {
-    const countStudent = await pool.query(`SELECT TO_CHAR(student_since, 'YYYY-MM') as date, count(*) as total_students
-    FROM students GROUP BY date ORDER BY date ASC`);
-    res.status(200).json(countStudent.rows);
-  } catch (err) {
-    console.error('Erreur dans /getTotalStudents:', err);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.get('/students', async (req, res) => {
-    try {
-            const allStudents = await pool.query(`SELECT id, last_name, first_name, class_name,
-                 absence FROM students inner join class on students.class_id = class.class_id ORDER BY class_name DESC`);
-                 res.status(200).json(allStudents.rows);
-    } catch (error) {
-        res.status(500).json({ error: 'Erreur serveur' });
-    }
-});
-
-app.get('/getTotalTeachers', async (req, res) => {
-    try {
-      const countTeachers = await pool.query('SELECT count(*) FROM teachers');
-      res.status(200).json(countTeachers.rows[0].count);
-    } catch (err) {
-      console.error('Erreur dans /getTotalTeachers:', err);
-      res.status(500).json({ error: 'Erreur serveur' });
-    }
-  });
-
-app.get('/getGradesEvolutions', async(req, res) => {
-  try {
-    const getCollegeGrades = await pool.query(`
-      SELECT quarter_id, quarter_name, niveau, percentage
-FROM gradesEvolution
-ORDER BY quarter_id, niveau;
+    const result = await pool.query(`SELECT 
+    c.class_id,
+    c.class_name,
+    COUNT(s.id) AS nb_eleves
+FROM 
+    class c
+LEFT JOIN 
+    students s ON c.class_id = s.class_id
+GROUP BY 
+    c.class_id, c.class_name
+ORDER BY 
+    c.class_id ASC;
 `);
-      if(getCollegeGrades.length != 0){
-        res.status(200).json(getCollegeGrades.rows)
-      }
-    
+    res.json(result.rows);
   } catch (error) {
-    console.error('Erreur dans /getGradesEvolutions:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
-app.post('/generateStudentReport', async (req, res) => {
+app.post('/class', async (req, res) => {
+  const { className } = req.body;
+  const id = await pool.query('SELECT count(*) as max_id FROM class');
   try {
-    const { id, quarter_id } = req.body;
-    console.log(id, Number(quarter_id));
-    const reportPath = await report.generateClassReport(id, quarter_id);  // Fonction qui génère le bulletin
-
-    if (!reportPath || !fs.existsSync(reportPath)) {
-      return res.status(500).json({ error: "Le fichier généré n'existe pas" });
+    const result = await pool.query('INSERT INTO class (class_id, class_name) VALUES ($1, $2) RETURNING *', [Number(id.rows[0].max_id) + 1, className]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Class not created');
     }
-
-    // Envoyer le fichier généré au client
-    res.download(reportPath, (err) => {
-      if (err) {
-        console.error('Erreur lors de l\'envoi du fichier:', err);
-        res.status(500).json({ error: 'Erreur serveur lors de l\'envoi du fichier' });
-      }else{
-        
-      }
-    });
+    res.json(result.rows[0]);
   } catch (error) {
-    console.error('Erreur dans /generateReport:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
-app.post('/generateClassReport', async (req, res) => {
+app.delete('/class/:id', async (req, res) => {
+  const { id } = req.params;
   try {
-    const { class_id, quarter_id } = req.body;
-    const zip = new JSZip();
-    const className = await pool.query(`SELECT class_name FROM class WHERE class_id =$1`, [class_id]);
-    console.log(class_id);
-    const classFolder = zip.folder(className.rows[0].class_name);
-
-    const classes = await pool.query(`SELECT id FROM students WHERE class_id = $1`, [class_id]);
-    
-    for(let i=0; i< classes.rows.length; i++){
-      const id = classes.rows[i].id;
-      
-      const reportPath = await report.generateClassReport(id, quarter_id); 
-      const reportCard = fs.readFileSync(reportPath); 
-      classFolder.file(`Bulletin ${classes.rows[i].id}.xlsx`, reportCard);
+    const result = await pool.query('DELETE FROM class WHERE class_id = $1 RETURNING *', [id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Class not found');
     }
-    const classZip = await zip.generateAsync({ type: 'nodebuffer' });
-    const zipName = `${className.rows[0].class_name}.zip`;
-    const zipPath = path.resolve(__dirname, 'reportCards', zipName);
-    fs.writeFileSync(zipPath, classZip);
-    
-
-
-    // Envoyer le fichier généré au client
-    res.download(zipPath, (err) => {
-      if (err) {
-        console.error('Erreur lors de l\'envoi du fichier:', err);
-        res.status(500).json({ error: 'Erreur serveur lors de l\'envoi du fichier' });
-      }else{
-        
-      }
-    });
+    res.json(result.rows[0]);
   } catch (error) {
-    console.error('Erreur dans /generateClassReport:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
-app.post('/payment', async (req, res) => {
+app.put('/class/:id', async (req, res) => {
+  const { id } = req.params;
+  const { className } = req.body;
   try {
-    const { student_id, amount, payment_date, description } = req.body;
-    const payment_id = crypto.randomUUID();
-
-    await pool.query(`
-      INSERT INTO payment (payment_id, student_id, description, amount, payment_date)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [payment_id, student_id, description, amount, payment_date]);
-    res.status(200).json({ message: 'Paiement enregistré avec succès' });
+    const result = await pool.query('UPDATE class SET class_name = $1 WHERE class_id = $2 RETURNING *', [className, id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Class not found');
+    }
+    res.json(result.rows[0]);
   } catch (error) {
-    console.error('Erreur dans /payment:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
-app.delete('/payment/:id', async (req, res) => {
+app.get('/tuition/:studentId', async (req, res) => {
+  const { studentId } = req.params;
   try {
-    const payment_id = req.params.id;
-    await pool.query(`DELETE FROM payment WHERE payment_id = $1`, [payment_id]);
-    res.status(200).json({ message: 'Paiement supprimé avec succès' });
+    const result = await pool.query('SELECT * FROM payment WHERE student_id = $1', [studentId]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('No tuition records found for this student');
+    }
+    res.json(result.rows);
   } catch (error) {
-    console.error('Erreur dans /payment:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
-app.delete('/students/:id', async (req, res) => {
+app.get('/grades', async (req, res) => {
+  const { studentId, term } = req.query;
   try {
-    const id  = req.params.id;
-    await pool.query(`DELETE FROM students WHERE id = $1`, [id]);
-    res.status(200).json({ message: 'Élève supprimé avec succès' });
+    const result = await pool.query('SELECT * FROM grades WHERE student_id = $1 AND quarter_id = $2', [studentId, term]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('No grades records found for this student');
+    }
+    res.json(result.rows);
   } catch (error) {
-    console.error('Erreur dans /student:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get('/finance/balance', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT amount FROM payment');
+    if(result.rows.length === 0) {
+      return res.status(404).send('No payment records found');
+    }
+    const totalBalance = result.rows.reduce((acc, curr) => acc + parseFloat(curr.amount), 0);
+    res.json(totalBalance);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
   }
 });
 
 
+app.get('/admins', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM admins');
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get
 
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Serveur Express démarré sur le port ${PORT}`);
-  console.log('Server launched');
+
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });

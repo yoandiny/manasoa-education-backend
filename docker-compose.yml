@@ -1,0 +1,8 @@
+services:
+  backend:
+    build: .
+    container_name: petit-lascar-backend
+    ports:
+      - "5001:5001"
+    restart: always
+
