@@ -6,7 +6,7 @@ import cors from 'cors';
 import {v4 as uuidv4} from 'uuid';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(cors());
