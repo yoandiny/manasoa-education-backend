@@ -15,7 +15,7 @@ app.use(express.json());
 const JWT_SECRET = process.env.JWT_SECRET || 'secret_key_admin';
 
 app.get('/', (req, res) => {
-  res.send('Welcome to the Petit Lascar Backend!');
+  res.send('Welcome to the Manasoa Backend!');
 });
 
 app.post('/admin', async (req, res) => {
