@@ -428,6 +428,21 @@ app.get('/class/:id/subjects/', async (req, res) => {
   }
 });
 
+app.post('/class/:id/chef', async (req, res) => {
+  const { id } = req.params;
+  const { studentId } = req.body;
+  try {
+    const result = await pool.query('UPDATE class SET chef_id = $1 WHERE class_id = $2 RETURNING *', [studentId, id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Class not found');
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
 app.get('/tuition/:studentId', async (req, res) => {
   const { studentId } = req.params;
   try {
