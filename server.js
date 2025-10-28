@@ -414,6 +414,20 @@ app.get('/class/:id/students/', async (req, res) => {
   }
 });
 
+app.get('/class/:id/subjects/', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM class_subject join subject on subject.subject_id = class_subject.subject_id WHERE class_id = $1', [id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('No subjects found for this class');
+    }
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
 app.get('/tuition/:studentId', async (req, res) => {
   const { studentId } = req.params;
   try {
