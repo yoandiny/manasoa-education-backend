@@ -389,7 +389,7 @@ app.put('/class/:id', async (req, res) => {
 app.get('/class/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await pool.query('SELECT * FROM class join students on students.id = class.chef_id WHERE students.class_id = $1', [id]);
+    const result = await pool.query('SELECT * FROM class WHERE students.class_id = $1', [id]);
     if(result.rows.length === 0) {
       return res.status(404).send('Class not found');
     }
