@@ -386,6 +386,20 @@ app.put('/class/:id', async (req, res) => {
   }
 });
 
+app.get('/class/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM class WHERE class_id = $1', [id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Class not found');
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
 app.get('/tuition/:studentId', async (req, res) => {
   const { studentId } = req.params;
   try {
