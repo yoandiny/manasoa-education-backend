@@ -428,7 +428,7 @@ app.get('/class/:id/subjects/', async (req, res) => {
   }
 });
 
-app.post('/class/:id/chef', async (req, res) => {
+app.post('/class/:id/assign-delegate', async (req, res) => {
   const { id } = req.params;
   const { studentId } = req.body;
   try {
