@@ -431,6 +431,7 @@ app.get('/class/:id/subjects/', async (req, res) => {
 app.post('/class/:id/assign-delegate', async (req, res) => {
   const { id } = req.params;
   const { studentId } = req.body;
+  console.log('Assigning student', studentId, 'as delegate for class', id);
   try {
     const result = await pool.query('UPDATE class SET chef_id = $1 WHERE class_id = $2 RETURNING *', [studentId, id]);
     if(result.rows.length === 0) {
