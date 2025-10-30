@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import cors from 'cors';
 import {v4 as uuidv4} from 'uuid';
+import { generateClassReport } from './reportCard.js';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -497,7 +498,23 @@ app.get('/admins', async (req, res) => {
   }
 });
 
-app.get
+app.get('/reports/class', async (req, res) => {
+  const { classId, term } = req.query;
+  try {
+    const pdfBuffer = await generateClassReport(classId, term);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="class_${classId}_report_term_${term}.pdf"`,
+      'Content-Length': pdfBuffer.length
+    });
+    res.send(pdfBuffer);
+    
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+    
+  }
+});
 
 
 
