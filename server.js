@@ -161,7 +161,7 @@ app.put('/students/:id', async (req, res) => {
            address = $6, 
            student_contact = $7, 
            father_contact = $8,
-           gender = $9,
+           gender = $9
        WHERE id = $10
        RETURNING *`,
       [first_name, last_name, sqlBirthdate, class_id, absence, address, student_contact, father_contact, gender, id]
