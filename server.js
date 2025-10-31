@@ -461,10 +461,10 @@ app.get('/tuition/:studentId', async (req, res) => {
   }
 });
 
-app.get('/grades', async (req, res) => {
+app.get('/grade', async (req, res) => {
   const { studentId, term } = req.query;
   try {
-    const result = await pool.query('SELECT * FROM grades WHERE student_id = $1 AND quarter_id = $2', [studentId, term]);
+    const result = await pool.query('SELECT * FROM grade WHERE student_id = $1 AND quarter_id = $2', [studentId, term]);
     if(result.rows.length === 0) {
       return res.status(404).send('No grades records found for this student');
     }
