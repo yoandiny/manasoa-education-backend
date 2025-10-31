@@ -95,9 +95,9 @@ app.get('/students', async (req, res) => {
 });
 
 app.post('/students', async (req, res) => {
-  const { id, firstName, lastName, birthDate, classId } = req.body;
+  const { id, firstName, lastName, birthDate, classId, gender } = req.body;
   try {
-    const result = await pool.query('INSERT INTO students (id, first_name, last_name, birthdate, class_id) VALUES ($1, $2, $3, $4, $5) RETURNING *', [id, firstName, lastName, birthDate, classId]);
+    const result = await pool.query('INSERT INTO students (id, first_name, last_name, birthdate, class_id, gender) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [id, firstName, lastName, birthDate, classId, gender]);
     res.json(result.rows[0]);
   } catch (error) {
     console.error(error);
@@ -129,7 +129,8 @@ app.put('/students/:id', async (req, res) => {
     absence, 
     address, 
     student_contact, 
-    father_contact 
+    father_contact,
+    gender 
   } = req.body;
 
   try {
@@ -159,10 +160,11 @@ app.put('/students/:id', async (req, res) => {
            absence = $5, 
            address = $6, 
            student_contact = $7, 
-           father_contact = $8
-       WHERE id = $9 
+           father_contact = $8,
+           gender = $9,
+       WHERE id = $10
        RETURNING *`,
-      [first_name, last_name, sqlBirthdate, class_id, absence, address, student_contact, father_contact, id]
+      [first_name, last_name, sqlBirthdate, class_id, absence, address, student_contact, father_contact, gender, id]
     );
 
     if (result.rows.length === 0) {
