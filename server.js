@@ -475,6 +475,32 @@ app.get('/grade', async (req, res) => {
   }
 });
 
+app.post('/grade', async (req, res) => {
+  const { grades } = req.body; // Attendre un tableau de notes
+  if (!grades || !Array.isArray(grades)) {
+    return res.status(400).send('Bad request: grades must be an array');
+  }
+
+  try {
+    const insertQueries = grades.map(grade => {
+      const { student_id, subject_id, quarter_id, grade_value } = grade;
+      return pool.query(
+        'INSERT INTO grade (student_id, subject_id, quarter_id, grade_value) VALUES ($1, $2, $3, $4) RETURNING *',
+        [student_id, subject_id, quarter_id, grade_value]
+      );
+    });
+
+    // Exécuter toutes les requêtes d'insertion en parallèle
+    const results = await Promise.all(insertQueries);
+    
+    // Renvoyer toutes les notes insérées
+    res.json(results.map(result => result.rows[0]));
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
 app.get('/finance/balance', async (req, res) => {
   try {
     const result = await pool.query('SELECT amount FROM payment');
