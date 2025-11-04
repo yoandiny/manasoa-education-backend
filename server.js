@@ -178,6 +178,20 @@ app.put('/students/:id', async (req, res) => {
   }
 });
 
+app.delete('/students/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM students WHERE id = $1 RETURNING *', [id]);
+    if(result.rows.length === 0) {
+      return res.status(404).send('Student not found');
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+  }
+});
+
 
 app.get('/teachers', async (req, res) => {
   try {
