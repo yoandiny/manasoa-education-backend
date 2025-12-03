@@ -502,7 +502,7 @@ app.post('/grade', async (req, res) => {
       const res = await pool.query(
         `INSERT INTO grade (student_id, subject_id, quarter_id, grade) 
 VALUES ($1, $2, $3, $4) 
-ON CONFLICT (student_id, subject_id, quarter_id) 
+ON CONFLICT (grade_id, student_id, subject_id, quarter_id) 
 DO UPDATE 
 SET grade = EXCLUDED.grade 
 RETURNING *;`,
