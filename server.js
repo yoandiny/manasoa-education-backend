@@ -504,7 +504,7 @@ app.post('/grade', async (req, res) => {
         `INSERT INTO grade (student_id, subject_id, quarter_id, type_note_id, grade) 
 VALUES ($1, $2, $3, $4, $5) 
 RETURNING *`,
-        [student_id, subject_id, term, note_id[i], grades[Object.keys(grades)[i]]]
+        [student_id, subject_id, +term, note_id[i], grades[Object.keys(grades)[i]]]
       );
       if(res.rows.length === 0) {
         return res.status(500).send('Error saving grades');
