@@ -516,9 +516,6 @@ RETURNING *`,
          quarter_id=$4 and type_note_id =$5`, [grades[Object.keys(grades)[i]], student_id, subject_id, +term, note_id[i]]);
          }
 
-      if(gradeReq.rows.length === 0) {
-        throw new Error('Error')
-      }
       if(i === Object.keys(grades).length - 1) {
         return 
       }
