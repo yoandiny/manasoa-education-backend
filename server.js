@@ -505,8 +505,15 @@ app.post('/grade', async (req, res) => {
         DO UPDATE SET grade = EXCLUDED.grade`,
         [student_id, subject_id, term, grades[Object.keys(grades)[i]]]
       );
+      if(res.rows.length === 0) {
+        return res.status(500).send('Error saving grades');
+      }
+      if(i === Object.keys(grades).length - 1) {
+        return res.status(200).send('Grades saved successfully');
+      }
       
      }
+      
       
     } catch (error) {
       console.error(error);
