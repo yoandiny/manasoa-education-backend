@@ -503,6 +503,9 @@ app.post('/grade', async (req, res) => {
       const res = await pool.query(
         `INSERT INTO grade (student_id, subject_id, quarter_id, type_note_id, grade) 
 VALUES ($1, $2, $3, $4, $5) 
+ON CONFLICT (student_id, subject_id, type_note_id, quarter_id) 
+DO UPDATE 
+SET grade = EXCLUDED.grade 
 RETURNING *`,
         [student_id, subject_id, +term, note_id[i], grades[Object.keys(grades)[i]]]
       );
