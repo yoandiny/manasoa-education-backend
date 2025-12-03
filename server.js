@@ -511,7 +511,7 @@ RETURNING *`,
         [student_id, subject_id, +term, note_id[i], grades[Object.keys(grades)[i]]]
       );
          }else{
-          const gradeReq = await pool.query(`update grade set grade=$1 where student_id=$2
+          const gradeReq = await pool.query(`update grade set grade=$1 where student_id=$2 and
           subject_id=$3 and
          quarter_id=$4 and type_note_id =$5`, [student_id, subject_id, +term, note_id[i], grades[Object.keys(grades)[i]]]);
          }
