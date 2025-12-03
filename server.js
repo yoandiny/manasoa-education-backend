@@ -504,20 +504,20 @@ app.post('/grade', async (req, res) => {
          subject_id=$2 and
          quarter_id=$3 and type_note_id =$4`, [student_id, subject_id, +term, note_id[i]])
          if(grade.rows.length === 0){
-          const res = await pool.query(
+          const gradeReq = await pool.query(
         `INSERT INTO grade (student_id, subject_id, quarter_id, type_note_id, grade) 
 VALUES ($1, $2, $3, $4, $5) 
 RETURNING *`,
         [student_id, subject_id, +term, note_id[i], grades[Object.keys(grades)[i]]]
       );
          }else{
-          const res = await pool.query(`update grade set grade=$1 where student_id=$1
-          subject_id=$2 and
-         quarter_id=$3 and type_note_id =$4`, [student_id, subject_id, +term, note_id[i]])
+          const gradeReq = await pool.query(`update grade set grade=$1 where student_id=$2
+          subject_id=$3 and
+         quarter_id=$4 and type_note_id =$5`, [student_id, subject_id, +term, note_id[i], grades[Object.keys(grades)[i]]]);
          }
 
-      if(res.rows.length === 0) {
-        return res.status(500).send('Error saving grades');
+      if(gradeReq.rows.length === 0) {
+        throw new Error('Error')
       }
       if(i === Object.keys(grades).length - 1) {
         return 
@@ -531,20 +531,6 @@ RETURNING *`,
       console.error(error);
       res.status(500).send('Server error');
     }
-});
-
-app.get('/finance/balance', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT amount FROM payment');
-    if(result.rows.length === 0) {
-      return res.status(404).send('No payment records found');
-    }
-    const totalBalance = result.rows.reduce((acc, curr) => acc + parseFloat(curr.amount), 0);
-    res.json(totalBalance);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send('Server error');
-  }
 });
 
 
