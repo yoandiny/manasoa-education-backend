@@ -512,10 +512,10 @@ RETURNING *`,
       );
          }else{
           const res = await pool.query(`update grade set grade=$1 where student_id=$1
-            subject_id=$2 and
+          subject_id=$2 and
          quarter_id=$3 and type_note_id =$4`, [student_id, subject_id, +term, note_id[i]])
          }
-         
+
       if(res.rows.length === 0) {
         return res.status(500).send('Error saving grades');
       }
