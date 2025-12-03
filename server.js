@@ -498,7 +498,7 @@ app.post('/grade', async (req, res) => {
   }
 
   try {
-     for(i = 0; i < Object.keys(grades).length; i++) {
+     for(let i = 0; i < Object.keys(grades).length; i++) {
       const res = await pool.query(
         `INSERT INTO grade (student_id, subject_id, quarter_id, grade) VALUES ($1, $2, $3, $4) RETURNING *
         ON CONFLICT (student_id, subject_id, quarter_id) 
