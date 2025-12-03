@@ -505,7 +505,7 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (grade_id, student_id, subject_id, quarter_id) 
 DO UPDATE 
 SET grade = EXCLUDED.grade 
-RETURNING *;`,
+RETURNING *`,
         [student_id, subject_id, term, grades[Object.keys(grades)[i]]]
       );
       if(res.rows.length === 0) {
