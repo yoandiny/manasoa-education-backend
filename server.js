@@ -500,9 +500,12 @@ app.post('/grade', async (req, res) => {
   try {
      for(let i = 0; i < Object.keys(grades).length; i++) {
       const res = await pool.query(
-        `INSERT INTO grade (student_id, subject_id, quarter_id, grade) VALUES ($1, $2, $3, $4) RETURNING *
-        ON CONFLICT (student_id, subject_id, quarter_id) 
-        DO UPDATE SET grade = EXCLUDED.grade`,
+        `INSERT INTO grade (student_id, subject_id, quarter_id, grade) 
+VALUES ($1, $2, $3, $4) 
+ON CONFLICT (student_id, subject_id, quarter_id) 
+DO UPDATE 
+SET grade = EXCLUDED.grade 
+RETURNING *;`,
         [student_id, subject_id, term, grades[Object.keys(grades)[i]]]
       );
       if(res.rows.length === 0) {
