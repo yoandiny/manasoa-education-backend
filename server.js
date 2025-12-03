@@ -1,5 +1,5 @@
 import pool from './bdd.js';
-import express from 'express';
+import express, { query } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import cors from 'cors';
@@ -500,23 +500,31 @@ app.post('/grade', async (req, res) => {
   try {
     const note_id = [1, 2, 3, 4];
      for(let i = 0; i < Object.keys(grades).length; i++) {
-      const res = await pool.query(
+      const grade = await pool.query(`select * from grade where student_id=$1 and
+         subject_id=$2 and
+         quarter_id=$3 and type_note_id =$4`, [student_id, subject_id, +term, note_id[i]])
+         if(grade.rows.length === 0){
+          const res = await pool.query(
         `INSERT INTO grade (student_id, subject_id, quarter_id, type_note_id, grade) 
 VALUES ($1, $2, $3, $4, $5) 
-ON CONFLICT (grade_id) 
-DO UPDATE 
-SET grade = EXCLUDED.grade 
 RETURNING *`,
         [student_id, subject_id, +term, note_id[i], grades[Object.keys(grades)[i]]]
       );
+         }else{
+          const res = await pool.query(`update grade set grade=$1 where student_id=$1
+            subject_id=$2 and
+         quarter_id=$3 and type_note_id =$4`, [student_id, subject_id, +term, note_id[i]])
+         }
+         
       if(res.rows.length === 0) {
         return res.status(500).send('Error saving grades');
       }
       if(i === Object.keys(grades).length - 1) {
-        return res.status(200).send('Grades saved successfully');
+        return 
       }
       
      }
+     res.status(200).send('Grades saved successfully');
       
       
     } catch (error) {
