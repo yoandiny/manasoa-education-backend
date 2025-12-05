@@ -499,8 +499,8 @@ app.post('/grade', async (req, res) => {
 
   try {
     const note_id = [1, 2, 3, 4];
-     for(let i = 0; i <= Object.keys(grades).length; i++) {
-      console.log(note_id);
+     for(let i = 0; i <= Object.keys(grades).length -1; i++) {
+      console.log(note_id[i], grades[Object.keys(grades)[i]]);
       const grade = await pool.query(`select * from grade where student_id=$1 and
          subject_id=$2 and
          quarter_id=$3 and type_note_id =$4`, [student_id, subject_id, +term, note_id[i]])
