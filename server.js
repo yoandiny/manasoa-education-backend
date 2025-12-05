@@ -527,6 +527,30 @@ RETURNING *`,
     }
 });
 
+app.get('/grade/class-subject/', async(req, res) =>{
+  const {classId, subjectId, term} = req.query;
+  try {
+    if(!classId && !subjectId && !term){
+      res.status(400).send({"error": "Bad Request: Missing ClassId or subjectId or Term"})
+    }
+
+    const gradeList = await pool.query(`SELECT grade_id,subject_id,quarter_id, student_id, type_note_id, grade FROM grade 
+      join students on students.id = grade.student_id where subject_id=$1 and class_id=$2 and quarter_id=$3`,
+      [subjectId, classId, term]
+    )
+    if(!gradeList.rows.length){
+      res.status(404).send({"error": "No grades found for this class and subject"})
+      }
+
+    res.status(200).send(gradeList.rows);
+    
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server error');
+    
+  }
+});
+
 
 app.get('/admins', async (req, res) => {
   try {
