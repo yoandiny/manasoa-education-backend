@@ -499,7 +499,7 @@ app.post('/grade', async (req, res) => {
 
   try {
     const note_id = [1, 2, 3, 4];
-     for(let i = 0; i < Object.keys(grades).length; i++) {
+     for(let i = 0; i <= Object.keys(grades).length; i++) {
       const grade = await pool.query(`select * from grade where student_id=$1 and
          subject_id=$2 and
          quarter_id=$3 and type_note_id =$4`, [student_id, subject_id, +term, note_id[i]])
@@ -515,10 +515,6 @@ RETURNING *`,
           subject_id=$3 and
          quarter_id=$4 and type_note_id =$5`, [grades[Object.keys(grades)[i]], student_id, subject_id, +term, note_id[i]]);
          }
-
-      if(i === Object.keys(grades).length - 1) {
-        return 
-      }
       
      }
      res.status(200).send('Grades saved successfully');
