@@ -527,7 +527,7 @@ RETURNING *`,
     }
 });
 
-app.get('/grade/class-subject/', async(req, res) =>{
+app.get('/grades/class-subject/', async(req, res) =>{
   const {classId, subjectId, term} = req.query;
   try {
     if(!classId && !subjectId && !term){
