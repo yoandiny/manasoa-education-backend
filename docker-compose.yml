@@ -5,4 +5,10 @@ services:
     ports:
       - "5001:5001"
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+        reservations:
+          memory: 512M
 
