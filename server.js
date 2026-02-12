@@ -649,7 +649,7 @@ app.get('/api/sync/pull', async (req, res) => {
     data.subjects = subjectsResult.rows;
 
     // Get grades (if since is provided, filter by created_at)
-    let gradesQuery = 'SELECT * FROM grades';
+    let gradesQuery = 'SELECT * FROM grade';
     if (since) {
       gradesQuery += ` WHERE created_at > $1`;
       const gradesResult = await pool.query(gradesQuery, [since]);
