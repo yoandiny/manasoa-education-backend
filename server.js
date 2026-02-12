@@ -659,6 +659,25 @@ app.get('/api/sync/pull', async (req, res) => {
       data.grades = gradesResult.rows;
     }
 
+    // New tables expansion
+    const paymentsResult = await pool.query('SELECT * FROM payment');
+    data.payments = paymentsResult.rows;
+
+    const classSubjectsResult = await pool.query('SELECT * FROM class_subject');
+    data.class_subjects = classSubjectsResult.rows;
+
+    const affectedResult = await pool.query('SELECT * FROM affected');
+    data.affected = affectedResult.rows;
+
+    const noteTypesResult = await pool.query('SELECT * FROM note_type');
+    data.note_types = noteTypesResult.rows;
+
+    const quartersResult = await pool.query('SELECT * FROM quarter');
+    data.quarters = quartersResult.rows;
+
+    const reportInfoResult = await pool.query('SELECT * FROM report_info');
+    data.report_info = reportInfoResult.rows;
+
     res.json({ success: true, data });
   } catch (error) {
     console.error('Sync pull error:', error);
@@ -682,7 +701,6 @@ app.post('/api/sync/push', async (req, res) => {
 
       try {
         if (operation === 'INSERT') {
-          // Handle INSERT
           if (table_name === 'students') {
             await pool.query(
               `INSERT INTO students (id, first_name, last_name, gender, class_id, absence, birthdate, birthplace, address, student_since, student_contact, mother_name, mother_contact, father_name, father_contact, status) 
@@ -714,10 +732,50 @@ app.post('/api/sync/push', async (req, res) => {
                class_name = EXCLUDED.class_name, chef_id = EXCLUDED.chef_id, fee = EXCLUDED.fee`,
               [data.class_id, data.class_name, data.chef_id, data.fee || 0]
             );
+          } else if (table_name === 'subject') {
+            await pool.query(
+              `INSERT INTO subject (subject_id, subject_name)
+               VALUES ($1, $2)
+               ON CONFLICT (subject_id) DO UPDATE SET
+               subject_name = EXCLUDED.subject_name`,
+              [data.subject_id, data.subject_name]
+            );
+          } else if (table_name === 'payment') {
+            await pool.query(
+              `INSERT INTO payment (payment_id, student_id, description, amount, payment_date)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (payment_id) DO UPDATE SET
+               student_id = EXCLUDED.student_id, description = EXCLUDED.description,
+               amount = EXCLUDED.amount, payment_date = EXCLUDED.payment_date`,
+              [data.payment_id, data.student_id, data.description, data.amount, data.payment_date]
+            );
+          } else if (table_name === 'class_subject') {
+            await pool.query(
+              `INSERT INTO class_subject (subject_id, class_id, coeff)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (subject_id, class_id) DO UPDATE SET
+               coeff = EXCLUDED.coeff`,
+              [data.subject_id, data.class_id, data.coeff]
+            );
+          } else if (table_name === 'affected') {
+            await pool.query(
+              `INSERT INTO affected (teacher_id, class_id)
+               VALUES ($1, $2)
+               ON CONFLICT (teacher_id, class_id) DO NOTHING`,
+              [data.teacher_id, data.class_id]
+            );
+          } else if (table_name === 'grade') {
+            await pool.query(
+              `INSERT INTO grade (grade_id, student_id, subject_id, type_note_id, grade, term, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (grade_id) DO UPDATE SET
+               student_id = EXCLUDED.student_id, subject_id = EXCLUDED.subject_id,
+               type_note_id = EXCLUDED.type_note_id, grade = EXCLUDED.grade,
+               term = EXCLUDED.term, created_at = EXCLUDED.created_at`,
+              [data.grade_id, data.student_id, data.subject_id, data.type_note_id, data.grade, data.term, data.created_at]
+            );
           }
-          results.push({ record_id, success: true });
         } else if (operation === 'UPDATE') {
-          // Handle UPDATE
           if (table_name === 'students') {
             await pool.query(
               `UPDATE students SET first_name = $1, last_name = $2, gender = $3, class_id = $4,
@@ -740,19 +798,36 @@ app.post('/api/sync/push', async (req, res) => {
               `UPDATE class SET class_name = $1, chef_id = $2, fee = $3 WHERE class_id = $4`,
               [data.class_name, data.chef_id, data.fee || 0, record_id]
             );
+          } else if (table_name === 'subject') {
+            await pool.query(
+              `UPDATE subject SET subject_name = $1 WHERE subject_id = $2`,
+              [data.subject_name, record_id]
+            );
+          } else if (table_name === 'class_subject') {
+            await pool.query(
+              `UPDATE class_subject SET coeff = $1 WHERE subject_id = $2 AND class_id = $3`,
+              [data.coeff, data.subject_id, data.class_id]
+            );
           }
-          results.push({ record_id, success: true });
         } else if (operation === 'DELETE') {
-          // Handle DELETE
           if (table_name === 'students') {
             await pool.query('DELETE FROM students WHERE id = $1', [record_id]);
           } else if (table_name === 'teachers') {
             await pool.query('DELETE FROM teachers WHERE id = $1', [record_id]);
           } else if (table_name === 'class') {
             await pool.query('DELETE FROM class WHERE class_id = $1', [record_id]);
+          } else if (table_name === 'subject') {
+            await pool.query('DELETE FROM subject WHERE subject_id = $1', [record_id]);
+          } else if (table_name === 'payment') {
+            await pool.query('DELETE FROM payment WHERE payment_id = $1', [record_id]);
+          } else if (table_name === 'grade') {
+            await pool.query('DELETE FROM grade WHERE grade_id = $1', [record_id]);
+          } else if (table_name === 'class_subject') {
+            const [sId, cId] = record_id.split('_');
+            await pool.query('DELETE FROM class_subject WHERE subject_id = $1 AND class_id = $2', [sId, cId]);
           }
-          results.push({ record_id, success: true });
         }
+        results.push({ record_id, success: true });
       } catch (opError) {
         console.error(`Error processing operation for ${record_id}:`, opError);
         results.push({ record_id, success: false, error: opError.message });
