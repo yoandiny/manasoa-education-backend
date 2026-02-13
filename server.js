@@ -590,7 +590,7 @@ app.get('/api/sync/check', async (req, res) => {
     const timestamps = {};
 
     // Get last modification time for each table
-    const tables = ['students', 'teachers', 'class', 'subject', 'grades'];
+    const tables = ['students', 'teachers', 'class', 'subject', 'grade'];
 
     for (const table of tables) {
       // For PostgreSQL, we need to check if there's a timestamp column
@@ -599,8 +599,8 @@ app.get('/api/sync/check', async (req, res) => {
 
       if (table === 'students') {
         query = 'SELECT MAX(student_since) as last_modified FROM students';
-      } else if (table === 'grades') {
-        query = 'SELECT MAX(created_at) as last_modified FROM grades';
+      } else if (table === 'grade') {
+        query = 'SELECT MAX(grade_id) as last_modified FROM grade'; // Using grade_id as fallback if created_at is missing
       } else {
         // For tables without timestamp, return current time
         timestamps[table] = new Date().toISOString();
@@ -648,16 +648,11 @@ app.get('/api/sync/pull', async (req, res) => {
     const subjectsResult = await pool.query('SELECT * FROM subject');
     data.subjects = subjectsResult.rows;
 
-    // Get grades (if since is provided, filter by created_at)
-    let gradesQuery = 'SELECT * FROM grade';
-    if (since) {
-      gradesQuery += ` WHERE created_at > $1`;
-      const gradesResult = await pool.query(gradesQuery, [since]);
-      data.grades = gradesResult.rows;
-    } else {
-      const gradesResult = await pool.query(gradesQuery);
-      data.grades = gradesResult.rows;
-    }
+    // Get grades (returns quarter_id as term for frontend compatibility)
+    let gradesQuery = 'SELECT grade_id, student_id, subject_id, type_note_id, grade, quarter_id as term FROM grade';
+    // Removed 'since' filter using 'created_at' as it doesn't exist in the schema
+    const gradesResult = await pool.query(gradesQuery);
+    data.grades = gradesResult.rows;
 
     // New tables expansion
     const paymentsResult = await pool.query('SELECT * FROM payment');
@@ -766,13 +761,13 @@ app.post('/api/sync/push', async (req, res) => {
             );
           } else if (table_name === 'grade') {
             await pool.query(
-              `INSERT INTO grade (grade_id, student_id, subject_id, type_note_id, grade, term, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)
+              `INSERT INTO grade (grade_id, student_id, subject_id, type_note_id, grade, quarter_id)
+               VALUES ($1, $2, $3, $4, $5, $6)
                ON CONFLICT (grade_id) DO UPDATE SET
                student_id = EXCLUDED.student_id, subject_id = EXCLUDED.subject_id,
                type_note_id = EXCLUDED.type_note_id, grade = EXCLUDED.grade,
-               term = EXCLUDED.term, created_at = EXCLUDED.created_at`,
-              [data.grade_id, data.student_id, data.subject_id, data.type_note_id, data.grade, data.term, data.created_at]
+               quarter_id = EXCLUDED.quarter_id`,
+              [data.grade_id, data.student_id, data.subject_id, data.type_note_id, data.grade, data.term]
             );
           }
         } else if (operation === 'UPDATE') {
@@ -807,6 +802,18 @@ app.post('/api/sync/push', async (req, res) => {
             await pool.query(
               `UPDATE class_subject SET coeff = $1 WHERE subject_id = $2 AND class_id = $3`,
               [data.coeff, data.subject_id, data.class_id]
+            );
+          } else if (table_name === 'grade') {
+            await pool.query(
+              `UPDATE grade SET student_id = $1, subject_id = $2, type_note_id = $3, grade = $4, quarter_id = $5 
+               WHERE grade_id = $6`,
+              [data.student_id, data.subject_id, data.type_note_id, data.grade, data.term, record_id]
+            );
+          } else if (table_name === 'payment') {
+            await pool.query(
+              `UPDATE payment SET student_id = $1, description = $2, amount = $3, payment_date = $4 
+               WHERE payment_id = $5`,
+              [data.student_id, data.description, data.amount, data.payment_date, record_id]
             );
           }
         } else if (operation === 'DELETE') {
